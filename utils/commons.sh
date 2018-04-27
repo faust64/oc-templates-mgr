@@ -11,7 +11,6 @@ fetch_template()
     fi
     if test "$1"; then
 	template="$1"
-	shift
     else
 	template=jenkins-persistent
     fi
