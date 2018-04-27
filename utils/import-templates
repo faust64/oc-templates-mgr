@@ -74,17 +74,14 @@ find . -type d -maxdepth 1 2>/dev/null | sort |
 			    echo "[DEBUG] skipping $project/$tplname - no changes"
 			fi
 			continue
-		    #elif ! oc delete template -n $project $tplname >/dev/null 2>&1; then
-		    elif ! echo oc delete template -n $project $tplname; then
+		    elif ! oc delete template -n $project $tplname >/dev/null 2>&1; then
 			echo "[ERROR] failed purging previous copy of $project/$tplname" >&2
 			continue
 		    fi
 		fi
-		#if oc create -n "$project" -f "$template" >/dev/null 2>&1; then
-		if echo oc create -n "$project" -f "$template"; then
+		if oc create -n "$project" -f "$template" >/dev/null 2>&1; then
 		    echo "[NOTICE] done with $project/$tplname"
-		#elif ! oc create -n "$project" -f "$TMPFILE" >/dev/null 2>&1; then
-		elif ! echo oc create -n "$project" -f "$TMPFILE"; then
+		elif ! oc create -n "$project" -f "$TMPFILE" >/dev/null 2>&1; then
 		    mv $TMPFILE "$project/$tplname.bak"
 		    echo "[ERROR] failed importing $project/$tplname, failed restoring from previous copy, kept as $project/$tpmname.bak" >&2
 		else
