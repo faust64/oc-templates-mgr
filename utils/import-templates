@@ -1,0 +1,96 @@
+#!/bin/sh
+
+if test -s ./utils/commons.sh; then
+    . ./utils/commons.sh
+elif test -s ./commons.sh; then
+    . ./commons.sh
+else
+    echo "[ERROR] can't find commons.sh" >&2
+    exit 1
+fi
+
+test -z "$FILTER"               && FILTER=".*"
+test -z "$DO_CREATE_PROJECT"    && DO_CREATE_PROJECT=no
+test "$DO_PURGE_DROPPED" = true || DO_PURGE_DROPPED=false
+TMPFILE=/tmp/`basename $0`.$$
+LEFT=$TMPFILE.left
+RIGHT=$TMPFILE.left
+
+cleanup()
+{
+    local rv=$?
+    rm -f $TMPFILE $LEFT $RIGHT
+    exit $rv
+}
+
+if $DO_PURGE_DROPPED; then
+    oc get templates --all-namespaces | grep -v ^NAMESPACE |
+	while read project template restofline
+	do
+	    echo "$project/$template.yml" | grep -E "$FILTER" >/dev/null || continue
+	    if ! test -s $project/$template.yml; then
+		if ! oc delete template -n $project $template >/dev/null 2>&1; then
+		    echo "[ERROR] failed purging $project/$template" >&2
+		else
+		    echo "[NOTICE] purged $project/$template"
+		fi
+	    fi
+	done
+fi
+trap "cleanup" INT TERM EXIT
+find . -type d -maxdepth 1 2>/dev/null | sort |
+    while read projectdir
+    do
+	project=`echo "$projectdir" | sed 's|^[^/]*/||'`
+	if test "$project" = . -o "$project" = .git; then
+	    continue
+	elif grep "^/*$project" .gitignore >/dev/null 2>&1; then
+	    continue
+	fi
+	if ! oc describe project "$project" >/dev/null 2>&1; then
+	    if test "$DO_CREATE_PROJECT" = no; then
+		echo "[NOTICE] skipping project $project - you may force its creation setting DO_CREATE_PROJECT"
+		continue
+	    elif ! oc new-project "$project" >/dev/null 2>&1; then
+		echo "[ERROR] failed creating project $project" >&2
+		continue
+	    fi
+	    echo "[NOTICE] created project $project"
+	fi
+	ls "$project"/*.yml 2>/dev/null |
+	    while read template
+	    do
+		echo "$template" | grep -E "$FILTER" >/dev/null || continue
+		tplname=`echo "$template" | sed -e "s|$project/||" -e 's|\.yml||'`
+		if oc describe template -n "$project" "$tplname" >/dev/null 2>&1; then
+		    if ! fetch_template "$project" "$tplname" >$TMPFILE; then
+			echo "[WARNING] failed fetching previous copy of $project/$tplname - in doubt, skip it" >&2
+			continue
+		    fi
+		    parse_yaml "$TMPFILE"  | sort >$LEFT
+		    parse_yaml "$template" | sort >$RIGHT
+		    if diff $LEFT $RIGHT >/dev/null 2>&1; then
+			if test "$DEBUG"; then
+			    echo "[DEBUG] skipping $project/$tplname - no changes"
+			fi
+			continue
+		    #elif ! oc delete template -n $project $tplname >/dev/null 2>&1; then
+		    elif ! echo oc delete template -n $project $tplname; then
+			echo "[ERROR] failed purging previous copy of $project/$tplname" >&2
+			continue
+		    fi
+		fi
+		#if oc create -n "$project" -f "$template" >/dev/null 2>&1; then
+		if echo oc create -n "$project" -f "$template"; then
+		    echo "[NOTICE] done with $project/$tplname"
+		#elif ! oc create -n "$project" -f "$TMPFILE" >/dev/null 2>&1; then
+		elif ! echo oc create -n "$project" -f "$TMPFILE"; then
+		    mv $TMPFILE "$project/$tplname.bak"
+		    echo "[ERROR] failed importing $project/$tplname, failed restoring from previous copy, kept as $project/$tpmname.bak" >&2
+		else
+		    echo "[ERROR] failed importing $project/$tplname" >&2
+		fi
+	    done
+    done
+
+exit $?

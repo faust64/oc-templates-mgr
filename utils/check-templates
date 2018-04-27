@@ -1,0 +1,127 @@
+#!/bin/bash
+
+if test -s ./utils/commons.sh; then
+    . ./utils/commons.sh
+elif test -s ./commons.sh; then
+    . ./commons.sh
+else
+    echo "[ERROR] can't find commons.sh" >&2
+    exit 1
+fi
+
+if test -s /etc/debian-version; then
+    PKGLIST="dpkg -l"
+    RBYMATCH="^ii[ ]*libruby"
+    PRLMATCH="^ii[ ]*libyaml-perl"
+else
+    PKGLIST="rpm -qa"
+    RBYMATCH="^ruby-libs"
+    PRLMATCH="^perl-YAML-LibYAML"
+fi
+test "$ENFORCE_LIMITS" = false   || ENFORCE_LIMITS=true
+test "$ENFORCE_REQUESTS" = false || ENFORCE_REQUESTS=true
+test -z "$FILTER"                && FILTER=".*"
+test -z "$GITHOOK"               && GITHOOK=true
+if $PKGLIST | grep -E "$RBYMATCH" >/dev/null; then
+    YMLPARSER=ruby
+elif $PKGLIST | grep -E "$PRLMATCH" >/dev/null; then
+    YMLPARSER=perl
+    if ! perl -MYAML -e "use YAML;YAML::LoadFile(\"$template\")" >/dev/null 2>&1; then
+	echo " == failed parsing $template (perl) == [KO]"
+	continue
+    fi
+else
+    YMLPARSER=
+    echo "[WARNING] could not find YAML parser -- won't check everything!" >&2
+fi
+find . -type d -maxdepth 1 2>/dev/null |
+    while read project
+    do
+	ls $project/*.yml 2>/dev/null |
+	    while read template
+	    do
+		if ! echo "$template" | grep -E "$FILTER" >/dev/null; then
+		    continue
+		elif grep '^[ ]*	' "$template" >/dev/null 2>&1; then
+		    echo " == syntax error in $template == [KO]"
+		    if $GITHOOK; then
+			exit 1
+		    fi
+		    continue
+		fi
+		if test "$YMLPARSER" = ruby; then
+		    if ! ruby -e "require 'yaml';puts YAML.load_file(\"$template\")" >/dev/null 2>&1; then
+			echo " == failed parsing $template (ruby) == [KO]"
+			continue
+		    fi
+		elif test "$YMLPARSER" = perl; then
+		    if ! perl -MYAML -e "use YAML;YAML::LoadFile(\"$template\")" >/dev/null 2>&1; then
+			echo " == failed parsing $template (perl) == [KO]"
+			continue
+		    fi
+		fi
+		if test "$DEBUG"; then
+		    echo -n " == now processing $template == "
+		fi
+		hasCpuLimit=false hasRamLimit=false hasCpuRequest=false hasRamRequest=false watching=
+		( parse_yaml "$template" ; echo EOF ) |
+		    while read line
+		    do
+			if echo "$line" | grep objects_spec_template_spec_containers_name= >/dev/null; then
+			    hasCpuLimit=false hasRamLimit=false hasCpuRequest=false hasRamRequest=false
+			    watching=`echo "$line" | sed -e 's|^[^=]*=||' -e 's|"||g' -e "s|'||g"`
+			    if test "$DEBUG"; then
+				echo -n " == now processing $template == container $watching =="
+			    fi
+			elif test -z "$watching"; then
+			    continue
+			elif echo "$line" | grep spec_containers_resources_limits_cpu >/dev/null; then
+			    hasCpuLimit=true
+			elif echo "$line" | grep spec_containers_resources_limits_memory >/dev/null; then
+			    hasRamLimit=true
+			elif echo "$line" | grep spec_containers_resources_requests_cpu >/dev/null; then
+			    hasCpuRequest=true
+			elif echo "$line" | grep spec_containers_resources_requests_memory >/dev/null; then
+			    hasRamRequest=true
+			elif ! echo "$line" | grep objects_spec_template_spec_containers_ >/dev/null; then
+			    misses=
+			    if $ENFORCE_LIMITS; then
+				if ! $hasCpuLimit; then
+				    misses="CPU limitation"
+				elif ! $hasRamLimit; then
+				    misses="RAM limitation"
+				fi
+			    fi
+			    if $ENFORCE_REQUESTS; then
+				if ! $hasCpuRequest; then
+				    misses="CPU request"
+				elif ! $hasRamRequest; then
+				    misses="RAM request"
+				fi
+			    fi
+			    if test "$misses"; then
+				echo "[KO] missing $misses scheduling $watching @$template" >&2
+				if $GITHOOK; then
+				    exit 1
+				fi
+			    elif test "$DEBUG"; then
+				echo "[OK]"
+			    fi
+			    watching=
+			fi
+		    done
+		ret=$?
+		if test -z "$DEBUG"; then
+		    if test "$ret" = 0; then
+			echo "[OK]"
+		    else
+			echo "[KO]"
+			if $GITHOOK; then
+			    exit 1
+			fi
+		    fi
+		fi
+	    done
+    done
+
+exit 0

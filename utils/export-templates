@@ -1,0 +1,19 @@
+#!/bin/sh
+
+if test -s ./utils/commons.sh; then
+    . ./utils/commons.sh
+elif test -s ./commons.sh; then
+    . ./commons.sh
+else
+    echo "[ERROR] can't find commons.sh" >&2
+    exit 1
+fi
+
+oc get templates --all-namespaces | grep -v ^NAMESPACE |
+    while read project template restofline
+    do
+	test -d "$project" || mkdir -p "$project"
+	fetch_template "$project" "$template" >"$project/$template.yml"
+    done
+
+exit $?
