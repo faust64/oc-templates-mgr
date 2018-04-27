@@ -26,10 +26,6 @@ if $PKGLIST | grep -E "$RBYMATCH" >/dev/null; then
     YMLPARSER=ruby
 elif $PKGLIST | grep -E "$PRLMATCH" >/dev/null; then
     YMLPARSER=perl
-    if ! perl -MYAML -e "use YAML;YAML::LoadFile(\"$template\")" >/dev/null 2>&1; then
-	echo " == failed parsing $template (perl) == [KO]"
-	continue
-    fi
 else
     YMLPARSER=
     echo "[WARNING] could not find YAML parser -- won't check everything!" >&2
