@@ -63,7 +63,7 @@ find . -type d -maxdepth 1 2>/dev/null | sort |
 		echo "$template" | grep -E "$FILTER" >/dev/null || continue
 		tplname=`echo "$template" | sed -e "s|$project/||" -e 's|\.yml||'`
 		if oc describe template -n "$project" "$tplname" >/dev/null 2>&1; then
-		    if ! fetch_template "$project" "$tplname" >$TMPFILE; then
+		    if ! fetch_template "$project" "$tplname" >$TMPFILE 2>/dev/null; then
 			echo "[WARNING] failed fetching previous copy of $project/$tplname - in doubt, skip it" >&2
 			continue
 		    fi
