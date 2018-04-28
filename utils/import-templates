@@ -63,18 +63,17 @@ find . -type d -maxdepth 1 2>/dev/null | sort |
 		echo "$template" | grep -E "$FILTER" >/dev/null || continue
 		tplname=`echo "$template" | sed -e "s|$project/||" -e 's|\.yml||'`
 		if oc describe template -n "$project" "$tplname" >/dev/null 2>&1; then
-		    if ! fetch_template "$project" "$tplname" >$TMPFILE 2>/dev/null; then
-			echo "[WARNING] failed fetching previous copy of $project/$tplname - in doubt, skip it" >&2
-			continue
-		    fi
-		    parse_yaml "$TMPFILE"  | sort >$LEFT
-		    parse_yaml "$template" | sort >$RIGHT
-		    if diff $LEFT $RIGHT >/dev/null 2>&1; then
-			if test "$DEBUG"; then
-			    echo "[DEBUG] skipping $project/$tplname - no changes"
+		    if fetch_template "$project" "$tplname" >$TMPFILE 2>/dev/null; then
+			parse_yaml "$TMPFILE"  | sort >$LEFT
+			parse_yaml "$template" | sort >$RIGHT
+			if cmp $LEFT $RIGHT >/dev/null 2>&1; then
+			    if test "$DEBUG"; then
+				echo "[DEBUG] skipping $project/$tplname - no changes"
+			    fi
+			    continue
 			fi
-			continue
-		    elif ! oc delete template -n $project $tplname >/dev/null 2>&1; then
+		    fi
+		    if ! oc delete template -n "$project" "$tplname" >/dev/null 2>&1; then
 			echo "[ERROR] failed purging previous copy of $project/$tplname" >&2
 			continue
 		    fi
