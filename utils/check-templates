@@ -57,7 +57,7 @@ find . -type d -maxdepth 1 2>/dev/null |
 		    fi
 		fi
 		if test "$DEBUG"; then
-		    echo -n " == now processing $template == "
+		    echo "[DEBUG] now processing $template"
 		fi
 		hasCpuLimit=false hasRamLimit=false hasCpuRequest=false hasRamRequest=false watching=
 		( parse_yaml "$template" ; echo EOF ) |
@@ -67,7 +67,7 @@ find . -type d -maxdepth 1 2>/dev/null |
 			    hasCpuLimit=false hasRamLimit=false hasCpuRequest=false hasRamRequest=false
 			    watching=`echo "$line" | sed -e 's|^[^=]*=||' -e 's|"||g' -e "s|'||g"`
 			    if test "$DEBUG"; then
-				echo -n " == now processing $template == container $watching =="
+				echo -n "[DEBUG] processing $template#$watching "
 			    fi
 			elif test -z "$watching"; then
 			    continue
@@ -96,7 +96,11 @@ find . -type d -maxdepth 1 2>/dev/null |
 				fi
 			    fi
 			    if test "$misses"; then
-				echo "[KO] missing $misses scheduling $watching @$template" >&2
+				if test "$DEBUG"; then
+				    echo "[KO]"
+				else
+				    echo "[KO] missing $misses scheduling $watching @$template" >&2
+				fi
 				if $GITHOOK; then
 				    exit 1
 				fi
@@ -108,9 +112,7 @@ find . -type d -maxdepth 1 2>/dev/null |
 		    done
 		ret=$?
 		if test -z "$DEBUG"; then
-		    if test "$ret" = 0; then
-			echo "[$template looks allright]"
-		    else
+		    if test "0$ret" -ne 0; then
 			echo "[$template KO]"
 			if $GITHOOK; then
 			    exit 1
