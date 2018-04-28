@@ -109,9 +109,9 @@ find . -type d -maxdepth 1 2>/dev/null |
 		ret=$?
 		if test -z "$DEBUG"; then
 		    if test "$ret" = 0; then
-			echo "[OK]"
+			echo "[$template looks allright]"
 		    else
-			echo "[KO]"
+			echo "[$template KO]"
 			if $GITHOOK; then
 			    exit 1
 			fi
