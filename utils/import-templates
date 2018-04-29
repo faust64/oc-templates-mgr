@@ -63,29 +63,50 @@ find . -type d -maxdepth 1 2>/dev/null | sort |
 		echo "$template" | grep -E "$FILTER" >/dev/null || continue
 		tplname=`echo "$template" | sed -e "s|$project/||" -e 's|\.yml||'`
 		if oc describe template -n "$project" "$tplname" >/dev/null 2>&1; then
-		    if fetch_template "$project" "$tplname" >$TMPFILE 2>/dev/null; then
-			parse_yaml "$TMPFILE"  | sort >$LEFT
-			parse_yaml "$template" | sort >$RIGHT
-			if cmp $LEFT $RIGHT >/dev/null 2>&1; then
+		    for retry in 1 2 3
+		    do
+			if fetch_template "$project" "$tplname" >"$TMPFILE" 2>/dev/null; then
+			    break
+			fi
+			test "$retry" != 3 && sleep 3
+		    done
+		    if test -s "$TMPFILE"; then
+			parse_yaml "$TMPFILE"  | sort >"$LEFT"
+			parse_yaml "$template" | sort >"$RIGHT"
+			if cmp "$LEFT" "$RIGHT" >/dev/null 2>&1; then
 			    if test "$DEBUG"; then
 				echo "[DEBUG] skipping $project/$tplname - no changes"
 			    fi
 			    continue
 			fi
+		    else
+			echo "[WARNING] Could not fetch $project/$tpmname while it does seem to exist in OpenShift" >&2
 		    fi
 		    if ! oc delete template -n "$project" "$tplname" >/dev/null 2>&1; then
 			echo "[ERROR] failed purging previous copy of $project/$tplname" >&2
-			continue
 		    fi
 		fi
-		if oc create -n "$project" -f "$template" >/dev/null 2>&1; then
-		    echo "[NOTICE] done with $project/$tplname"
-		elif ! oc create -n "$project" -f "$TMPFILE" >/dev/null 2>&1; then
-		    mv $TMPFILE "$project/$tplname.bak"
-		    echo "[ERROR] failed importing $project/$tplname, failed restoring from previous copy, kept as $project/$tpmname.bak" >&2
-		else
-		    echo "[ERROR] failed importing $project/$tplname" >&2
-		fi
+		for retry in 1 2 3
+		do
+		    if oc create -n "$project" -f "$template" >/dev/null 2>&1; then
+			echo "[NOTICE] done with $project/$tplname"
+			break
+		    fi
+		    if test "$retry" = 3; then
+			if test -s "$TMPFILE"; then
+			    if ! oc create -n "$project" -f "$TMPFILE" >/dev/null 2>&1; then
+				mv "$TMPFILE" "$project/$tplname.bak"
+				echo "[ERROR] failed importing $project/$tplname, failed restoring from previous copy, kept as $project/$tpmname.bak" >&2
+			    else
+				echo "[ERROR] failed importing $project/$tplname" >&2
+			    fi
+			else
+			    echo "[ERROR] failed importing $project/$tplname" >&2
+			fi
+		    else
+			sleep 3
+		    fi
+		done
 	    done
     done
 
