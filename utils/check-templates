@@ -30,6 +30,40 @@ else
     YMLPARSER=
     echo "[WARNING] could not find YAML parser -- won't check everything!" >&2
 fi
+
+postproccontainer()
+{
+    local misses
+
+    misses=
+    if $ENFORCE_LIMITS; then
+	if ! $hasCpuLimit; then
+	    misses="CPU limitation"
+	elif ! $hasRamLimit; then
+	    misses="RAM limitation"
+	fi
+    fi
+    if $ENFORCE_REQUESTS; then
+	if ! $hasCpuRequest; then
+	    misses="CPU request"
+	elif ! $hasRamRequest; then
+	    misses="RAM request"
+	fi
+    fi
+    if test "$misses"; then
+	if test "$DEBUG"; then
+	    echo "[KO]"
+	else
+	    echo "[KO] missing $misses scheduling $watching @$template" >&2
+	fi
+	if $GITHOOK; then
+	    exit 1
+	fi
+    elif test "$DEBUG"; then
+	echo "[OK]"
+    fi
+}
+
 find . -type d -maxdepth 1 2>/dev/null |
     while read project
     do
@@ -64,6 +98,9 @@ find . -type d -maxdepth 1 2>/dev/null |
 		    while read line
 		    do
 			if echo "$line" | grep objects_spec_template_spec_containers_name= >/dev/null; then
+			    if test "$watching"; then
+				postproccontainer || exit $?
+			    fi
 			    hasCpuLimit=false hasRamLimit=false hasCpuRequest=false hasRamRequest=false
 			    watching=`echo "$line" | sed -e 's|^[^=]*=||' -e 's|"||g' -e "s|'||g"`
 			    if test "$DEBUG"; then
@@ -80,33 +117,7 @@ find . -type d -maxdepth 1 2>/dev/null |
 			elif echo "$line" | grep spec_containers_resources_requests_memory >/dev/null; then
 			    hasRamRequest=true
 			elif ! echo "$line" | grep objects_spec_template_spec_containers_ >/dev/null; then
-			    misses=
-			    if $ENFORCE_LIMITS; then
-				if ! $hasCpuLimit; then
-				    misses="CPU limitation"
-				elif ! $hasRamLimit; then
-				    misses="RAM limitation"
-				fi
-			    fi
-			    if $ENFORCE_REQUESTS; then
-				if ! $hasCpuRequest; then
-				    misses="CPU request"
-				elif ! $hasRamRequest; then
-				    misses="RAM request"
-				fi
-			    fi
-			    if test "$misses"; then
-				if test "$DEBUG"; then
-				    echo "[KO]"
-				else
-				    echo "[KO] missing $misses scheduling $watching @$template" >&2
-				fi
-				if $GITHOOK; then
-				    exit 1
-				fi
-			    elif test "$DEBUG"; then
-				echo "[OK]"
-			    fi
+			    postproccontainer || exit $?
 			    watching=
 			fi
 		    done
