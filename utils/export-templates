@@ -14,13 +14,22 @@ oc get templates --all-namespaces | grep -v ^NAMESPACE |
     while read project template restofline
     do
 	test -d "$project" || mkdir -p "$project"
-	fetch_template "$project" "$template" >"$TMPFILE" 2>/dev/null
-	if ! test -s "$TMPFILE"; then
-	    echo "[WARNING] empty object returned exporting $project/$template" >&2
-	    rm -f "$TMPFILE"
-	else
-	    mv "$TMPFILE" "$project/$template.yml"
-	fi
+	for retry in 1 2 3
+	do
+	    fetch_template "$project" "$template" >"$TMPFILE" 2>/dev/null
+	    if test -s "$TMPFILE"; then
+		mv "$TMPFILE" "$project/$template.yml"
+		break
+	    elif test "$retry" = 3; then
+		echo "[WARNING] empty object returned exporting $project/$template" >&2
+		rm -f "$TMPFILE"
+	    else
+		if test "$DEBUG"; then
+		    echo "[DEBUG] failed fetching $project/$template ($retry/3)"
+		fi
+		sleep 3
+	    fi
+	done
     done
 
 exit $?
