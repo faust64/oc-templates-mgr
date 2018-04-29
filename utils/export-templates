@@ -9,11 +9,18 @@ else
     exit 1
 fi
 
+TMPFILE=/tmp/`basename $0`.$$
 oc get templates --all-namespaces | grep -v ^NAMESPACE |
     while read project template restofline
     do
 	test -d "$project" || mkdir -p "$project"
-	fetch_template "$project" "$template" >"$project/$template.yml"
+	fetch_template "$project" "$template" >"$TMPFILE" 2>/dev/null
+	if ! test -s "$TMPFILE"; then
+	    echo "[WARNING] empty object returned exporting $project/$template" >&2
+	    rm -f "$TMPFILE"
+	else
+	    mv "$TMPFILE" "$project/$template.yml"
+	fi
     done
 
 exit $?
