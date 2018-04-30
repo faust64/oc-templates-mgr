@@ -1,9 +1,9 @@
 #!/bin/bash
 
-if test -s ./utils/commons.sh; then
-    . ./utils/commons.sh
-elif test -s ./commons.sh; then
-    . ./commons.sh
+BPATH=`dirname $0`
+if test -s $BPATH/commons.sh; then
+    . "$BPATH/commons.sh"
+    test -s "$BPATH/../profile" && . "$BPATH/../profile"
 else
     echo "[ERROR] can't find commons.sh" >&2
     exit 1
@@ -73,20 +73,25 @@ find . -type d -maxdepth 1 2>/dev/null |
 		if ! echo "$template" | grep -E "$FILTER" >/dev/null; then
 		    continue
 		elif grep '^[ ]*	' "$template" >/dev/null 2>&1; then
-		    echo " == syntax error in $template == [KO]"
+		    echo "[ERROR] syntax error in $template"
 		    if $GITHOOK; then
 			exit 1
 		    fi
 		    continue
-		fi
-		if test "$YMLPARSER" = ruby; then
+		elif test "$YMLPARSER" = ruby; then
 		    if ! ruby -e "require 'yaml';puts YAML.load_file(\"$template\")" >/dev/null 2>&1; then
-			echo " == failed parsing $template (ruby) == [KO]"
+			echo "[ERROR] failed parsing $template (ruby)"
+			if $GITHOOK; then
+			    exit 1
+			fi
 			continue
 		    fi
 		elif test "$YMLPARSER" = perl; then
 		    if ! perl -MYAML -e "use YAML;YAML::LoadFile(\"$template\")" >/dev/null 2>&1; then
-			echo " == failed parsing $template (perl) == [KO]"
+			echo "[ERROR] failed parsing $template (perl)"
+			if $GITHOOK; then
+			    exit 1
+			fi
 			continue
 		    fi
 		fi

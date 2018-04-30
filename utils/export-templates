@@ -1,18 +1,22 @@
 #!/bin/sh
 
-if test -s ./utils/commons.sh; then
-    . ./utils/commons.sh
-elif test -s ./commons.sh; then
-    . ./commons.sh
+BPATH=`dirname $0`
+if test -s $BPATH/commons.sh; then
+    . "$BPATH/commons.sh"
+    test -s "$BPATH/../profile" && . "$BPATH/../profile"
 else
     echo "[ERROR] can't find commons.sh" >&2
     exit 1
 fi
 
+test -z "$FILTER" && FILTER=".*"
 TMPFILE=/tmp/`basename $0`.$$
 oc get templates --all-namespaces | grep -v ^NAMESPACE |
     while read project template restofline
     do
+	if ! echo "$project/$template" | grep -E "$FILTER" >/dev/null; then
+	    continue
+	fi
 	test -d "$project" || mkdir -p "$project"
 	for retry in 1 2 3
 	do

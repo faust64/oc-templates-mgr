@@ -1,17 +1,17 @@
 #!/bin/sh
 
-if test -s ./utils/commons.sh; then
-    . ./utils/commons.sh
-elif test -s ./commons.sh; then
-    . ./commons.sh
+BPATH=`dirname $0`
+if test -s $BPATH/commons.sh; then
+    . "$BPATH/commons.sh"
+    test -s "$BPATH/../profile" && . "$BPATH/../profile"
 else
     echo "[ERROR] can't find commons.sh" >&2
     exit 1
 fi
 
-test -z "$FILTER"               && FILTER=".*"
-test -z "$DO_CREATE_PROJECT"    && DO_CREATE_PROJECT=no
-test "$DO_PURGE_DROPPED" = true || DO_PURGE_DROPPED=false
+test -z "$FILTER"                && FILTER=".*"
+test "$DO_CREATE_PROJECT" = true || DO_CREATE_PROJECT=false
+test "$DO_PURGE_DROPPED" = true  || DO_PURGE_DROPPED=false
 TMPFILE=/tmp/`basename $0`.$$
 LEFT=$TMPFILE.left
 RIGHT=$TMPFILE.left
@@ -48,7 +48,7 @@ find . -type d -maxdepth 1 2>/dev/null | sort |
 	    continue
 	fi
 	if ! oc describe project "$project" >/dev/null 2>&1; then
-	    if test "$DO_CREATE_PROJECT" = no; then
+	    if ! $DO_CREATE_PROJECT; then
 		echo "[NOTICE] skipping project $project - you may force its creation setting DO_CREATE_PROJECT"
 		continue
 	    elif ! oc new-project "$project" >/dev/null 2>&1; then
