@@ -14,7 +14,7 @@ fetch_template()
     else
 	template=jenkins-persistent
     fi
-    test -z "$EXPORT_FILTERS" && EXPORT_FILTERS="creationTimestamp="
+    test -z "$EXPORT_FILTERS" && EXPORT_FILTERS="creationTimestamp:"
     oc export template -n "$project" "$template" | grep -vE "$EXPORT_FILTERS"
 }
 
