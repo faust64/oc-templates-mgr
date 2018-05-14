@@ -14,7 +14,7 @@ test "$DO_CREATE_PROJECT" = true || DO_CREATE_PROJECT=false
 test "$DO_PURGE_DROPPED" = true  || DO_PURGE_DROPPED=false
 TMPFILE=/tmp/`basename $0`.$$
 LEFT=$TMPFILE.left
-RIGHT=$TMPFILE.left
+RIGHT=$TMPFILE.right
 
 cleanup()
 {
@@ -60,7 +60,12 @@ find . -type d -maxdepth 1 2>/dev/null | sort |
 	ls "$project"/*.yml 2>/dev/null |
 	    while read template
 	    do
-		echo "$template" | grep -E "$FILTER" >/dev/null || continue
+		if ! echo "$template" | grep -E "$FILTER" >/dev/null; then
+		    continue
+		elif ! oc process -f "$template" | oc create --dry-run -f->/dev/null 2>&1; then
+		    echo "[WARNING] dry run failed checking $template - skipping" >&2
+		    continue
+		fi
 		tplname=`echo "$template" | sed -e "s|$project/||" -e 's|\.yml||'`
 		if oc describe template -n "$project" "$tplname" >/dev/null 2>&1; then
 		    for retry in 1 2 3
@@ -96,7 +101,7 @@ find . -type d -maxdepth 1 2>/dev/null | sort |
 			if test -s "$TMPFILE"; then
 			    if ! oc create -n "$project" -f "$TMPFILE" >/dev/null 2>&1; then
 				mv "$TMPFILE" "$project/$tplname.bak"
-				echo "[ERROR] failed importing $project/$tplname, failed restoring from previous copy, kept as $project/$tpmname.bak" >&2
+				echo "[ERROR] failed importing $project/$tplname, failed restoring from previous copy, kept as $project/$tplname.bak" >&2
 			    else
 				echo "[ERROR] failed importing $project/$tplname" >&2
 			    fi
