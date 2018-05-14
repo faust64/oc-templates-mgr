@@ -7,10 +7,10 @@ check-oc:
 check-templates:
 	@@./utils/check-templates
 
-export-templates: check-oc
+export: check-oc
 	@@./utils/export-templates
 
-import-templates: check-oc check-templates
+import: check-oc check-templates
 	@@./utils/import-templates
 
 pre-commit:
