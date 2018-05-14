@@ -71,6 +71,7 @@ find . -type d -maxdepth 1 2>/dev/null |
 	    while read template
 	    do
 		if ! echo "$template" | grep -E "$FILTER" >/dev/null; then
+		     test "$DEBUG" && echo "[NOTICE] skipping $template check - does not match filter"
 		    continue
 		elif grep '^[ ]*	' "$template" >/dev/null 2>&1; then
 		    echo "[ERROR] syntax error in $template"
